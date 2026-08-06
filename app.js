@@ -1,34 +1,15 @@
-const $=s=>document.querySelector(s);
-let currentData=null;
-let currentRegistryBacked=false;
+const REGISTRY_ENDPOINT =
+  "https://script.google.com/macros/s/AKfycbxcANK_eHZ3aAqYYCvhYOxcdMuSNTBJ6CFvX-yRt6V2RtPbgRu9lvGYSmRHak3sumXs/exec";
+
+const $=id=>document.getElementById(id);
 let currentThumb=null;
 
-function escapeHtml(v){
-  return String(v??'').replace(/[&<>"']/g,c=>({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
-  }[c]));
+function safe(v,fallback="Unavailable"){
+  if(v===undefined||v===null||String(v).trim()==="")return fallback;
+  return String(v);
 }
 
-function decodePayload(raw){
-  try{
-    const u=new URL(raw);
-    raw=u.searchParams.get('e')||raw;
-  }catch{}
-  raw=raw.replace(/-/g,'+').replace(/_/g,'/');
-  while(raw.length%4)raw+='=';
-  return JSON.parse(decodeURIComponent(escape(atob(raw))));
-}
-
-function first(...values){
-  return values.find(v=>v!==undefined&&v!==null&&String(v).trim()!=='') ?? 'Unavailable';
-}
-
-function boolValue(...values){
-  const v=values.find(x=>x!==undefined&&x!==null);
-  return v===true||v===1||v==='1'||v==='true';
-}
-
-function numeric(...values){
+function numberValue(...values){
   for(const value of values){
     const n=Number(value);
     if(Number.isFinite(n))return n;
@@ -36,337 +17,233 @@ function numeric(...values){
   return null;
 }
 
+function yes(value){
+  return value===true||value===1||value==="1"||value==="true";
+}
+
 function shortHash(value){
-  const v=String(value??'').trim();
-  if(!v)return 'Not published';
-  if(v.length<=28)return v;
-  return `${v.slice(0,12)}…${v.slice(-12)}`;
+  const text=safe(value,"Not published");
+  if(text==="Not published"||text.length<=28)return text;
+  return `${text.slice(0,12)}…${text.slice(-12)}`;
 }
 
-function addRows(target,items){
-  $(target).innerHTML=items.map(([k,v,cls])=>
-    `<div class="dataRow"><span>${escapeHtml(k)}</span><strong class="${cls||''}">${escapeHtml(v)}</strong></div>`
-  ).join('');
+function addRows(target,rows){
+  $(target).innerHTML=rows.map(([label,value,cls])=>
+    `<div class="dataRow"><span>${escapeHtml(label)}</span><strong class="${cls||""}">${escapeHtml(value)}</strong></div>`
+  ).join("");
 }
 
-function imageHashMatch(data){
-  const registered=first(data.imageSha256,data.sha256,data.registeredImageSha256);
-  const submitted=first(data.submittedImageSha256,data.currentImageSha256);
-  if(registered==='Unavailable'||registered==='Not published')return 'Not available';
-  if(submitted==='Unavailable')return 'Registered hash recorded';
-  return registered.toLowerCase()===submitted.toLowerCase()?'Matched':'Mismatch';
+function escapeHtml(v){
+  return String(v??"").replace(/[&<>"']/g,c=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[c]));
 }
 
-function signatureFinding(data){
-  if(data.captureSignatureValid===true)return 'Valid';
-  if(data.captureSignatureValid===false)return 'Invalid';
-  return first(data.captureSignature)==='Unavailable'?'Not available':'Recorded — validation pending';
+function calculateConfidence(record){
+  const locationRisk=yes(record.locationRisk);
+  let score=0;
+  score+=25;
+  if(safe(record.imageSha256,"")!=="")score+=20;
+  if(safe(record.captureSignature,"")!=="")score+=20;
+  if(safe(record.captureKeyFingerprint,"")!=="")score+=10;
+  if(safe(record.maskedGeoStampDeviceIdentity,"")!=="")score+=10;
+  if(numberValue(record.accuracyM)!==null)score+=5;
+  if(!locationRisk)score+=10;
+  if(locationRisk)score=Math.min(score,69);
+  return Math.max(0,Math.min(100,score));
 }
 
-function calculateConfidence(data,registryBacked){
-  const risk=boolValue(data.locationRisk,data.locationIntegrityRisk,data.lr);
-  let available=0;
-  let earned=0;
-
-  const award=(weight,condition)=>{
-    available+=weight;
-    if(condition)earned+=weight;
-  };
-
-  award(25,registryBacked);
-  const hashFinding=imageHashMatch(data);
-  award(25,hashFinding==='Matched'||hashFinding==='Registered hash recorded');
-  const sig=signatureFinding(data);
-  award(20,sig==='Valid'||sig==='Recorded — validation pending');
-  award(10,first(data.maskedGeoStampDeviceIdentity,data.geoStampDeviceIdentity,data.gdi)!=='Unavailable');
-  award(10,numeric(data.accuracyM,data.accuracy,data.acc,data.a)!==null);
-  award(10,!risk);
-
-  if(available===0)return 0;
-  const score=Math.round((earned/available)*100);
-  return risk?Math.min(score,69):score;
-}
-
-function setThumbnail(url){
+function applyThumbnail(url){
   if(url){
     currentThumb=url;
-    $('#thumb').src=url;
-    $('#thumb').classList.remove('hidden');
-    $('#thumbPlaceholder').classList.add('hidden');
+    $("thumbnail").src=url;
+    $("thumbnail").classList.remove("hidden");
+    $("imagePlaceholder").classList.add("hidden");
   }else{
-    currentThumb=null;
-    $('#thumb').classList.add('hidden');
-    $('#thumbPlaceholder').classList.remove('hidden');
+    $("thumbnail").classList.add("hidden");
+    $("imagePlaceholder").classList.remove("hidden");
   }
 }
 
-function reportThumbnailUrl(data){
-  return first(
-    data.thumbnailUrl,
-    data.thumbUrl,
-    data.imageThumbnailUrl,
-    data.publicThumbnailUrl,
-    data.imageUrl
+function render(record,thumbUrl=null){
+  const evidenceId=safe(record.evidenceId||record.verificationId);
+  const captured=numberValue(record.capturedAt);
+  const accuracy=numberValue(record.accuracyM);
+  const lat=numberValue(record.latitude);
+  const lon=numberValue(record.longitude);
+  const locationRisk=yes(record.locationRisk);
+  const confidence=calculateConfidence(record);
+
+  $("certificate").classList.remove("hidden");
+  $("recordStatus").textContent=locationRisk
+    ?"LOCATION INTEGRITY REVIEW"
+    :"REGISTERED EVIDENCE";
+  $("summaryText").textContent=locationRisk
+    ?"Public registry record found; location-integrity signals require review."
+    :"The Evidence ID is confirmed in the GeoStamp Public Registry.";
+
+  $("confidenceValue").textContent=`${confidence}%`;
+  $("confidenceRing").style.borderColor=locationRisk
+    ?"#e35b5b"
+    :confidence>=80?"#35d29a":"#e0aa35";
+
+  $("evidenceId").textContent=evidenceId;
+  $("registryValue").textContent="Publicly Registered";
+  $("capturedValue").textContent=captured===null
+    ?"Unavailable"
+    :new Date(captured).toLocaleString();
+  $("primaryValue").textContent=safe(record.primaryValue);
+  $("secondaryValue").textContent=safe(record.secondaryValue);
+
+  applyThumbnail(
+    thumbUrl||
+    record.thumbnailUrl||
+    record.imageThumbnailUrl||
+    record.publicThumbnailUrl||
+    record.imageUrl||
+    currentThumb
   );
-}
 
-function show(data,thumb,registryBacked=false){
-  currentData=data;
-  currentRegistryBacked=registryBacked;
-  $('#result').classList.remove('hidden');
-
-  const risk=boolValue(data.locationRisk,data.locationIntegrityRisk,data.lr);
-  const id=first(data.evidenceId,data.verificationId,data.id);
-  const captured=first(data.capturedAt,data.ts,data.timestamp);
-  const capturedNumber=numeric(captured);
-  const capturedText=capturedNumber===null?'Unavailable':new Date(capturedNumber).toLocaleString();
-  const primary=first(data.primaryValue,data.operator,data.p);
-  const secondary=first(data.secondaryValue,data.siteId,data.s);
-  const workspace=first(data.workspaceMode,data.workspace,data.wm,data.w);
-  const lat=numeric(data.latitude,data.lat);
-  const lon=numeric(data.longitude,data.lon);
-  const accuracy=numeric(data.accuracyM,data.accuracy,data.acc,data.a);
-  const brand=first(data.deviceBrand,data.brand,data.db,data.manufacturer);
-  const model=first(data.deviceHardwareModel,data.deviceModel,data.model,data.dm);
-  const deviceIdentity=first(
-    data.maskedGeoStampDeviceIdentity,
-    data.geoStampDeviceIdentity,
-    data.gdi
-  );
-  const keyFingerprint=first(data.captureKeyFingerprint,data.kf);
-  const registry=registryBacked||data.registryStatus==='PUBLIC_RECORD'
-    ?'Publicly Registered'
-    :'Embedded QR Record';
-  const score=calculateConfidence(data,registryBacked);
-  const hashFinding=imageHashMatch(data);
-  const signature=signatureFinding(data);
-
-  $('#overall').textContent=risk
-    ?'LOCATION INTEGRITY REVIEW'
-    :registryBacked
-      ?'REGISTERED EVIDENCE'
-      :'QR RECORD FOUND';
-
-  $('#conclusion').textContent=risk
-    ?'Evidence record found; location-integrity signals require review.'
-    :registryBacked
-      ?'The Evidence ID is confirmed in the GeoStamp Public Registry.'
-      :'A structured GeoStamp capture record was decoded from the QR.';
-
-  $('#confidenceValue').textContent=`${score}%`;
-  $('#confidenceSeal').style.borderColor=risk?'#e35b5b':score>=80?'#35d29a':'#e0aa35';
-
-  $('#evidenceId').textContent=id;
-  $('#registryValue').textContent=registry;
-  $('#capturedValue').textContent=capturedText;
-  $('#primaryValue').textContent=primary;
-  $('#secondaryValue').textContent=secondary;
-
-  const storedThumb=reportThumbnailUrl(data);
-  setThumbnail(thumb || (storedThumb!=='Unavailable'?storedThumb:null));
-
-  addRows('#locationRows',[
-    ['Coordinates',lat===null||lon===null?'Unavailable':`${lat.toFixed(6)}, ${lon.toFixed(6)}`],
-    ['Accuracy',accuracy===null?'Unavailable':`±${accuracy.toFixed(1)} m`],
-    ['Location integrity',risk?'Risk recorded':'No mock-location indicator recorded',risk?'findingRisk':'findingPass'],
-    ['Workspace',workspace]
+  addRows("locationRows",[
+    ["Coordinates",lat===null||lon===null?"Unavailable":`${lat.toFixed(6)}, ${lon.toFixed(6)}`],
+    ["Accuracy",accuracy===null?"Unavailable":`±${accuracy.toFixed(1)} m`],
+    ["Location integrity",locationRisk?"Risk recorded":"No mock-location indicator recorded",
+      locationRisk?"findingRisk":"findingPass"],
+    ["Workspace",safe(record.workspaceMode)]
   ]);
 
-  addRows('#deviceRows',[
-    ['Brand',brand],
-    ['Model',model],
-    ['Device identity',deviceIdentity],
-    ['Capture key',keyFingerprint==='Unavailable'
-      ?first(data.captureKeySecurityLevel)
-      :keyFingerprint,
-      keyFingerprint==='Unavailable'?'findingReview':'findingPass'],
-    ['Capture signature',signature,
-      signature==='Valid'?'findingPass':signature==='Invalid'?'findingRisk':'findingReview']
+  addRows("deviceRows",[
+    ["Manufacturer",safe(record.deviceManufacturer)],
+    ["Brand",safe(record.deviceBrand)],
+    ["Model",safe(record.deviceHardwareModel)],
+    ["Device identity",safe(record.maskedGeoStampDeviceIdentity)],
+    ["Capture key",safe(record.captureKeySecurityLevel)],
+    ["Hardware-backed",yes(record.captureKeyHardwareBacked)?"Yes":"No",
+      yes(record.captureKeyHardwareBacked)?"findingPass":"findingReview"]
   ]);
 
-  const imageHash=first(data.imageSha256,data.sha256,data.registeredImageSha256);
-  addRows('#integrityRows',[
-    ['Registry',registry,registryBacked?'findingPass':'findingReview'],
-    ['Image SHA-256',shortHash(imageHash),imageHash==='Unavailable'?'findingReview':'valueMono'],
-    ['Hash comparison',hashFinding,
-      hashFinding==='Matched'?'findingPass':hashFinding==='Mismatch'?'findingRisk':'findingReview'],
-    ['Capture signature',signature,
-      signature==='Valid'?'findingPass':signature==='Invalid'?'findingRisk':'findingReview'],
-    ['Overall finding',risk?'Review required':score>=80?'High confidence':'Limited confidence',
-      risk?'findingRisk':score>=80?'findingPass':'findingReview']
+  const signatureAvailable=safe(record.captureSignature,"")!=="";
+  addRows("integrityRows",[
+    ["Registry","Confirmed","findingPass"],
+    ["Image SHA-256",shortHash(record.imageSha256),"mono"],
+    ["Capture signature",signatureAvailable?"Recorded":"Not available",
+      signatureAvailable?"findingPass":"findingReview"],
+    ["Signature algorithm",safe(record.captureSignatureAlgorithm)],
+    ["Overall finding",locationRisk?"Review required":confidence>=80?"High confidence":"Limited confidence",
+      locationRisk?"findingRisk":confidence>=80?"findingPass":"findingReview"]
   ]);
 
-  const now=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  const captureTime=capturedNumber===null
-    ?'—'
-    :new Date(capturedNumber).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
-  const hashTime=first(data.hashGeneratedAt,data.hashAt);
-  const signedTime=first(data.signedAt,data.signatureCreatedAt);
-  const registryTime=first(data.publishedAt,data.registeredAt);
+  const published=numberValue(record.publishedAt);
+  const created=numberValue(record.createdAt);
+  const now=new Date();
+
   const events=[
-    ['Captured',captureTime],
-    ['Hash',imageHash==='Unavailable'?'Not available':hashTime==='Unavailable'?'Recorded':new Date(Number(hashTime)).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})],
-    ['Signed',signature==='Not available'?'Not available':signedTime==='Unavailable'?'Recorded':new Date(Number(signedTime)).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})],
-    ['Registry',registryBacked?(registryTime==='Unavailable'?'Confirmed':new Date(Number(registryTime)).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})):'Not confirmed'],
-    ['Verified',now]
+    ["Captured",captured===null?"—":new Date(captured).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})],
+    ["Sealed",created===null?"Recorded":new Date(created).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})],
+    ["Signed",signatureAvailable?"Recorded":"Not available"],
+    ["Registered",published===null?"Confirmed":new Date(published).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})],
+    ["Verified",now.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})]
   ];
-  $('#timelineRows').innerHTML=events.map(([name,value])=>
+
+  $("timelineRows").innerHTML=events.map(([name,value])=>
     `<div class="timelineItem"><strong>${escapeHtml(name)}</strong>${escapeHtml(value)}</div>`
-  ).join('');
-
-  $('#scanStatus').textContent=registryBacked
-    ?'Public registry record loaded.'
-    :'Embedded QR evidence loaded. Public registry confirmation is not available for this record.';
+  ).join("");
 }
 
-let registryEndpointCache=null;
-
-async function registryEndpoint(){
-  if(registryEndpointCache)return registryEndpointCache;
-  try{
-    const r=await fetch(
-      `https://raw.githubusercontent.com/ahz-creator/GeoStamp-Config/main/registry.json?v=${Date.now()}`,
-      {cache:'no-store'}
-    );
-    if(!r.ok)return null;
-    const cfg=await r.json();
-    if(cfg.enabled!==false && /^https:\/\/.+/.test(String(cfg.endpoint||''))){
-      registryEndpointCache=cfg.endpoint;
-      return registryEndpointCache;
-    }
-  }catch{}
-  return null;
-}
-
-async function fetchRegistry(id){
-  const clean=String(id||'').trim();
-  if(!clean)return null;
-
-  const endpoint=await registryEndpoint();
-  if(endpoint){
-    try{
-      const r=await fetch(
-        `${endpoint}?id=${encodeURIComponent(clean)}&v=${Date.now()}`,
-        {cache:'no-store'}
-      );
-      if(r.ok){
-        const payload=await r.json();
-        if(payload.ok!==false)return payload.record||payload;
-      }
-    }catch{}
-  }
-
-  // Compatibility fallback for older manually published GitHub records.
-  try{
-    const r=await fetch(
-      `https://raw.githubusercontent.com/ahz-creator/GeoStamp-Config/main/evidence/${encodeURIComponent(clean.toLowerCase())}.json?v=${Date.now()}`,
-      {cache:'no-store'}
-    );
-    if(!r.ok)return null;
-    return await r.json();
-  }catch{
-    return null;
-  }
-}
-
-async function lookup(id){
-  const clean=id.trim();
-  if(!clean)return;
-  $('#scanStatus').textContent='Searching public registry…';
-  try{
-    const record=await fetchRegistry(clean);
-    if(!record)throw 0;
-    show(record,currentThumb,true);
-  }catch{
-    $('#result').classList.add('hidden');
-    $('#scanStatus').textContent='No public registry record found. Check the Evidence ID or scan the QR on the received photo.';
-  }
-}
-
-async function attachPhoto(file,alsoScan=true){
-  if(!file)return;
-  const thumb=URL.createObjectURL(file);
-  setThumbnail(thumb);
-
-  if(!alsoScan)return;
-  if(!('BarcodeDetector' in window)){
-    $('#scanStatus').textContent='Photo attached. This browser cannot scan its QR automatically.';
+async function lookupEvidence(id){
+  const clean=String(id||"").trim().toUpperCase();
+  if(!clean){
+    $("statusMessage").textContent="Enter an Evidence ID.";
     return;
   }
 
+  $("statusMessage").textContent="Searching public registry…";
+  $("lookupButton").disabled=true;
+
   try{
-    const bitmap=await createImageBitmap(file);
-    const codes=await new BarcodeDetector({formats:['qr_code']}).detect(bitmap);
-    if(!codes.length)throw 0;
-    const raw=codes[0].rawValue;
-
-    try{
-      const u=new URL(raw);
-      const id=u.searchParams.get('id');
-      const embedded=u.searchParams.get('e');
-
-      if(embedded){
-        const embeddedData=decodePayload(embedded);
-        show(embeddedData,thumb,false);
-        const embeddedId=first(
-          embeddedData.evidenceId,
-          embeddedData.verificationId,
-          embeddedData.id
-        );
-        if(embeddedId!=='Unavailable'){
-          const registryRecord=await fetchRegistry(embeddedId);
-          if(registryRecord)show({...embeddedData,...registryRecord},thumb,true);
-        }
-        return;
-      }
-
-      if(id){
-        $('#idInput').value=id;
-        const registryRecord=await fetchRegistry(id);
-        if(registryRecord)show(registryRecord,thumb,true);
-        else $('#scanStatus').textContent='QR read, but no public registry record was found.';
-        return;
-      }
-    }catch{}
-
-    const embeddedData=decodePayload(raw);
-    show(embeddedData,thumb,false);
-    const embeddedId=first(
-      embeddedData.evidenceId,
-      embeddedData.verificationId,
-      embeddedData.id
+    const response=await fetch(
+      `${REGISTRY_ENDPOINT}?id=${encodeURIComponent(clean)}&v=${Date.now()}`,
+      {cache:"no-store"}
     );
-    if(embeddedId!=='Unavailable'){
-      const registryRecord=await fetchRegistry(embeddedId);
-      if(registryRecord)show({...embeddedData,...registryRecord},thumb,true);
+    const payload=await response.json();
+
+    if(!payload.ok||!payload.record){
+      throw new Error(payload.error||"Record not found.");
     }
-  }catch{
-    $('#scanStatus').textContent='Photo attached, but its QR could not be read.';
+
+    $("idInput").value=safe(payload.record.evidenceId||payload.record.verificationId);
+    $("statusMessage").textContent="Public registry record confirmed.";
+    render(payload.record,currentThumb);
+  }catch(error){
+    $("certificate").classList.add("hidden");
+    $("statusMessage").textContent=error.message||"No public registry record found.";
+  }finally{
+    $("lookupButton").disabled=false;
   }
 }
 
-$('#lookup').onclick=()=>lookup($('#idInput').value);
-$('#idInput').addEventListener('keydown',e=>{
-  if(e.key==='Enter')lookup(e.target.value);
-});
-$('#photo').onchange=e=>attachPhoto(e.target.files[0],true);
-$('#reportPhoto').onchange=e=>attachPhoto(e.target.files[0],false);
-
-const q=new URLSearchParams(location.search);
-if(q.get('e')){
-  try{
-    const embedded=decodePayload(q.get('e'));
-    show(embedded,null,false);
-    const embeddedId=first(embedded.evidenceId,embedded.verificationId,embedded.id);
-    if(embeddedId!=='Unavailable'){
-      fetchRegistry(embeddedId).then(record=>{
-        if(record)show({...embedded,...record},null,true);
-      });
-    }
-  }catch{
-    $('#scanStatus').textContent='Invalid evidence payload.';
+async function decodeQrFromPhoto(file){
+  if(!("BarcodeDetector" in window)){
+    throw new Error("This browser cannot read QR codes from images.");
   }
-}else if(q.get('id')){
-  $('#idInput').value=q.get('id');
-  lookup(q.get('id'));
+
+  const bitmap=await createImageBitmap(file);
+  const detector=new BarcodeDetector({formats:["qr_code"]});
+  const codes=await detector.detect(bitmap);
+
+  if(!codes.length){
+    throw new Error("No QR code found in the selected image.");
+  }
+
+  const raw=codes[0].rawValue;
+
+  try{
+    const url=new URL(raw);
+    const directId=url.searchParams.get("id");
+    if(directId)return directId;
+
+    const encoded=url.searchParams.get("e");
+    if(encoded){
+      let value=encoded.replace(/-/g,"+").replace(/_/g,"/");
+      while(value.length%4)value+="=";
+      const decoded=JSON.parse(decodeURIComponent(escape(atob(value))));
+      return decoded.evidenceId||decoded.verificationId||decoded.id;
+    }
+  }catch{}
+
+  if(/^GST-[A-Z0-9-]+$/i.test(raw.trim())){
+    return raw.trim();
+  }
+
+  throw new Error("The selected QR does not contain a supported GeoStamp Evidence ID.");
+}
+
+$("lookupButton").onclick=()=>lookupEvidence($("idInput").value);
+$("idInput").addEventListener("keydown",event=>{
+  if(event.key==="Enter")lookupEvidence(event.target.value);
+});
+
+$("photoInput").onchange=async event=>{
+  const file=event.target.files?.[0];
+  if(!file)return;
+
+  currentThumb=URL.createObjectURL(file);
+  applyThumbnail(currentThumb);
+  $("statusMessage").textContent="Reading QR from received photo…";
+
+  try{
+    const evidenceId=await decodeQrFromPhoto(file);
+    $("idInput").value=evidenceId;
+    await lookupEvidence(evidenceId);
+  }catch(error){
+    $("statusMessage").textContent=error.message;
+  }
+};
+
+$("printButton").onclick=()=>window.print();
+
+const queryId=new URLSearchParams(location.search).get("id");
+if(queryId){
+  $("idInput").value=queryId;
+  lookupEvidence(queryId);
 }

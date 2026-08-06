@@ -3,57 +3,70 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>GeoStamp Digital Evidence Certificate</title>
+  <meta name="theme-color" content="#061629">
+  <title>GeoStamp Public Evidence Verification</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="portalHeader">
-    <div>
-      <div class="brand">GEOSTAMP</div>
-      <div class="brandSub">Digital Evidence Platform by Axiom InfraTech</div>
+  <header class="topbar">
+    <div class="brandBlock">
+      <div class="brandMark">G</div>
+      <div>
+        <div class="brandName">GEOSTAMP</div>
+        <div class="brandSub">Public Evidence Verification · Axiom InfraTech</div>
+      </div>
     </div>
+    <div class="topStatus">SECURE · TRANSPARENT · AUDITABLE</div>
   </header>
 
-  <main>
-    <section class="verifyCard">
-      <h1>Verify Evidence</h1>
-      <div class="lookupRow">
-        <input id="idInput" placeholder="Enter Evidence ID">
-        <button id="lookup">Verify</button>
+  <main class="page">
+    <section class="verifyPanel">
+      <div>
+        <div class="eyebrow">PUBLIC REGISTRY</div>
+        <h1>Verify Evidence</h1>
+        <p class="lead">Enter the complete Evidence ID or select a received GeoStamp photo.</p>
       </div>
-      <label class="uploadButton">Select received photo<input id="photo" type="file" accept="image/*"></label>
-      <p id="scanStatus" class="muted">Scan the QR or enter the Evidence ID.</p>
+
+      <div class="verifyControls">
+        <input id="idInput" autocomplete="off" placeholder="GST-26-XXXX-XXXX-XXXX">
+        <button id="lookupButton">VERIFY</button>
+      </div>
+
+      <div class="secondaryActions">
+        <label class="uploadButton">
+          SELECT RECEIVED PHOTO
+          <input id="photoInput" type="file" accept="image/*">
+        </label>
+        <span id="statusMessage">Ready to verify.</span>
+      </div>
     </section>
 
-    <section id="result" class="certificate hidden">
-      <div class="certificateTop">
+    <section id="certificate" class="certificate hidden">
+      <div class="certificateHeader">
         <div>
-          <div class="eyebrow">DIGITAL EVIDENCE CERTIFICATE</div>
-          <h2 id="overall">EVIDENCE RECORD</h2>
-          <p id="conclusion" class="conclusion"></p>
+          <div class="eyebrow light">DIGITAL EVIDENCE CERTIFICATE</div>
+          <h2 id="recordStatus">REGISTERED EVIDENCE</h2>
+          <p id="summaryText">Public registry record confirmed.</p>
         </div>
-        <div id="confidenceSeal" class="confidenceSeal">
+        <div id="confidenceRing" class="confidenceRing">
           <strong id="confidenceValue">—</strong>
           <span>CONFIDENCE</span>
         </div>
       </div>
 
-      <div class="heroGrid">
-        <div class="photoFrame">
-          <img id="thumb" class="thumb hidden" alt="Evidence thumbnail">
-          <div id="thumbPlaceholder" class="thumbPlaceholder">
-            <strong id="thumbMessage">Source image not supplied</strong>
-            <span>Select the received GeoStamp photo to include its thumbnail.</span>
-            <label class="inlinePhotoButton">
-              Select source photo
-              <input id="reportPhoto" type="file" accept="image/*">
-            </label>
+      <div class="hero">
+        <div class="imageBox">
+          <img id="thumbnail" class="hidden" alt="Evidence thumbnail">
+          <div id="imagePlaceholder" class="imagePlaceholder">
+            <strong>Source image not supplied</strong>
+            <span>Select the received photo to include its thumbnail.</span>
           </div>
         </div>
 
-        <div class="identityPanel">
-          <div class="identityLabel">EVIDENCE ID</div>
+        <div class="identityCard">
+          <div class="label">EVIDENCE ID</div>
           <div id="evidenceId" class="evidenceId">—</div>
+
           <div class="identityRows">
             <div><span>Registry</span><strong id="registryValue">—</strong></div>
             <div><span>Captured</span><strong id="capturedValue">—</strong></div>
@@ -80,18 +93,18 @@
         </article>
       </div>
 
-      <div class="timeline">
+      <section class="timelineCard">
         <h3>Evidence Timeline</h3>
         <div id="timelineRows" class="timelineRows"></div>
-      </div>
+      </section>
 
-      <div class="certificateFooter">
+      <footer class="certificateFooter">
         <div>
           <strong>GeoStamp Forensic Finding</strong>
-          <p>This certificate summarizes recorded technical signals. It does not independently prove the truth of the photographed scene.</p>
+          <p>This certificate summarizes recorded technical signals and registry findings. It does not independently prove the truth of the photographed scene.</p>
         </div>
-        <button onclick="window.print()">Print / Save PDF</button>
-      </div>
+        <button id="printButton">PRINT / SAVE PDF</button>
+      </footer>
     </section>
   </main>
 
