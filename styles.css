@@ -206,3 +206,30 @@ button,.uploadButton{
   .timeline{margin:4px 18px 8px;padding:9px}
   .certificateFooter{padding:9px 18px}
 }
+
+.thumbPlaceholder{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:22px;
+}
+.thumbPlaceholder strong{color:#e7f2f8;font-size:17px}
+.thumbPlaceholder span{max-width:260px;font-size:12px;font-weight:500;color:#91a7b6}
+.inlinePhotoButton{
+  display:inline-block;
+  margin-top:5px;
+  padding:9px 12px;
+  border-radius:9px;
+  background:#087f9b;
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.inlinePhotoButton input{display:none}
+.valueMono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px!important}
+@media print{
+  .inlinePhotoButton,.thumbPlaceholder span{display:none!important}
+}

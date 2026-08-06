@@ -41,7 +41,14 @@
       <div class="heroGrid">
         <div class="photoFrame">
           <img id="thumb" class="thumb hidden" alt="Evidence thumbnail">
-          <div id="thumbPlaceholder" class="thumbPlaceholder">Evidence photo thumbnail<br>available when photo is selected</div>
+          <div id="thumbPlaceholder" class="thumbPlaceholder">
+            <strong id="thumbMessage">Source image not supplied</strong>
+            <span>Select the received GeoStamp photo to include its thumbnail.</span>
+            <label class="inlinePhotoButton">
+              Select source photo
+              <input id="reportPhoto" type="file" accept="image/*">
+            </label>
+          </div>
         </div>
 
         <div class="identityPanel">
