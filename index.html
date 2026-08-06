@@ -8,7 +8,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>GeoStamp Public Evidence Verification</title>
-  <link rel="stylesheet" href="styles.css?v=20260807-final1">
+  <link rel="stylesheet" href="styles.css?v=20260807-qr4">
 </head>
 <body>
   <header class="topbar">
@@ -40,7 +40,7 @@
           SELECT RECEIVED PHOTO
           <input id="photoInput" type="file" accept="image/*">
         </label>
-        <span id="statusMessage">Ready to verify · Release final1</span>
+        <span id="statusMessage">Ready to verify · QR Certificate v4</span>
       </div>
     </section>
   </main>
@@ -61,7 +61,7 @@
       }
       $("statusMessage").textContent = "Opening registry certificate…";
       const url = `${REGISTRY_ENDPOINT}?view=certificate&id=${encodeURIComponent(clean)}&v=${Date.now()}`;
-      window.location.href = url;
+      window.location.replace(url);
     }
 
     async function decodeQrFromPhoto(file) {
@@ -109,7 +109,10 @@
     });
 
     const queryId = new URLSearchParams(location.search).get("id");
-    if (queryId) $("idInput").value = queryId;
+    if (queryId) {
+      $("idInput").value = queryId;
+      openCertificate(queryId);
+    }
   </script>
 </body>
 </html>
