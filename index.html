@@ -1,1 +1,93 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GeoStamp Evidence Portal</title><link rel="stylesheet" href="styles.css"></head><body><header><h1>GeoStamp Evidence Portal</h1><p>Digital evidence verification by Axiom InfraTech</p></header><main><section class="card"><h2>Verify Evidence</h2><div class="row"><input id="idInput" placeholder="Verification ID"><button id="lookup">Lookup</button></div><label class="upload">Select received photo<input id="photo" type="file" accept="image/*"></label><p id="scanStatus" class="muted">QR scanning is performed locally in your browser where supported.</p></section><section id="result" class="card hidden"><div class="status" id="overall"></div><img id="thumb" class="thumb hidden"><div id="rows"></div><p class="notice">GeoStamp reports the evidence signals recorded at capture. A registered image may still contain a location warning or risk.</p><button onclick="window.print()">Print result</button></section></main><script src="app.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>GeoStamp Digital Evidence Certificate</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="portalHeader">
+    <div>
+      <div class="brand">GEOSTAMP</div>
+      <div class="brandSub">Digital Evidence Platform by Axiom InfraTech</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="verifyCard">
+      <h1>Verify Evidence</h1>
+      <div class="lookupRow">
+        <input id="idInput" placeholder="Enter Evidence ID">
+        <button id="lookup">Verify</button>
+      </div>
+      <label class="uploadButton">Select received photo<input id="photo" type="file" accept="image/*"></label>
+      <p id="scanStatus" class="muted">Scan the QR or enter the Evidence ID.</p>
+    </section>
+
+    <section id="result" class="certificate hidden">
+      <div class="certificateTop">
+        <div>
+          <div class="eyebrow">DIGITAL EVIDENCE CERTIFICATE</div>
+          <h2 id="overall">EVIDENCE RECORD</h2>
+          <p id="conclusion" class="conclusion"></p>
+        </div>
+        <div id="confidenceSeal" class="confidenceSeal">
+          <strong id="confidenceValue">—</strong>
+          <span>CONFIDENCE</span>
+        </div>
+      </div>
+
+      <div class="heroGrid">
+        <div class="photoFrame">
+          <img id="thumb" class="thumb hidden" alt="Evidence thumbnail">
+          <div id="thumbPlaceholder" class="thumbPlaceholder">Evidence photo thumbnail<br>available when photo is selected</div>
+        </div>
+
+        <div class="identityPanel">
+          <div class="identityLabel">EVIDENCE ID</div>
+          <div id="evidenceId" class="evidenceId">—</div>
+          <div class="identityRows">
+            <div><span>Registry</span><strong id="registryValue">—</strong></div>
+            <div><span>Captured</span><strong id="capturedValue">—</strong></div>
+            <div><span>Operator / Location</span><strong id="primaryValue">—</strong></div>
+            <div><span>Site / Activity</span><strong id="secondaryValue">—</strong></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="auditGrid">
+        <article class="auditCard">
+          <h3>Capture & Location</h3>
+          <div id="locationRows"></div>
+        </article>
+
+        <article class="auditCard">
+          <h3>Device of Capture</h3>
+          <div id="deviceRows"></div>
+        </article>
+
+        <article class="auditCard">
+          <h3>Integrity Findings</h3>
+          <div id="integrityRows"></div>
+        </article>
+      </div>
+
+      <div class="timeline">
+        <h3>Evidence Timeline</h3>
+        <div id="timelineRows" class="timelineRows"></div>
+      </div>
+
+      <div class="certificateFooter">
+        <div>
+          <strong>GeoStamp Forensic Finding</strong>
+          <p>This certificate summarizes recorded technical signals. It does not independently prove the truth of the photographed scene.</p>
+        </div>
+        <button onclick="window.print()">Print / Save PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
