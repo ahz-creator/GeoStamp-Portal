@@ -219,15 +219,54 @@ function show(data,thumb,registryBacked=false){
     :'Embedded QR evidence loaded. Public registry confirmation is not available for this record.';
 }
 
+let registryEndpointCache=null;
+
+async function registryEndpoint(){
+  if(registryEndpointCache)return registryEndpointCache;
+  try{
+    const r=await fetch(
+      `https://raw.githubusercontent.com/ahz-creator/GeoStamp-Config/main/registry.json?v=${Date.now()}`,
+      {cache:'no-store'}
+    );
+    if(!r.ok)return null;
+    const cfg=await r.json();
+    if(cfg.enabled!==false && /^https:\/\/.+/.test(String(cfg.endpoint||''))){
+      registryEndpointCache=cfg.endpoint;
+      return registryEndpointCache;
+    }
+  }catch{}
+  return null;
+}
+
 async function fetchRegistry(id){
-  const clean=String(id||'').trim().toLowerCase();
+  const clean=String(id||'').trim();
   if(!clean)return null;
-  const r=await fetch(
-    `https://raw.githubusercontent.com/ahz-creator/GeoStamp-Config/main/evidence/${encodeURIComponent(clean)}.json?v=${Date.now()}`,
-    {cache:'no-store'}
-  );
-  if(!r.ok)return null;
-  return await r.json();
+
+  const endpoint=await registryEndpoint();
+  if(endpoint){
+    try{
+      const r=await fetch(
+        `${endpoint}?id=${encodeURIComponent(clean)}&v=${Date.now()}`,
+        {cache:'no-store'}
+      );
+      if(r.ok){
+        const payload=await r.json();
+        if(payload.ok!==false)return payload.record||payload;
+      }
+    }catch{}
+  }
+
+  // Compatibility fallback for older manually published GitHub records.
+  try{
+    const r=await fetch(
+      `https://raw.githubusercontent.com/ahz-creator/GeoStamp-Config/main/evidence/${encodeURIComponent(clean.toLowerCase())}.json?v=${Date.now()}`,
+      {cache:'no-store'}
+    );
+    if(!r.ok)return null;
+    return await r.json();
+  }catch{
+    return null;
+  }
 }
 
 async function lookup(id){
