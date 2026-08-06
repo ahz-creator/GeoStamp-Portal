@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#061629">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <title>GeoStamp Public Evidence Verification</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260807-final1">
 </head>
 <body>
   <header class="topbar">
@@ -37,77 +40,76 @@
           SELECT RECEIVED PHOTO
           <input id="photoInput" type="file" accept="image/*">
         </label>
-        <span id="statusMessage">Ready to verify.</span>
+        <span id="statusMessage">Ready to verify · Release final1</span>
       </div>
-    </section>
-
-    <section id="certificate" class="certificate hidden">
-      <div class="certificateHeader">
-        <div>
-          <div class="eyebrow light">DIGITAL EVIDENCE CERTIFICATE</div>
-          <h2 id="recordStatus">REGISTERED EVIDENCE</h2>
-          <p id="summaryText">Public registry record confirmed.</p>
-        </div>
-        <div id="confidenceRing" class="confidenceRing">
-          <strong id="confidenceValue">—</strong>
-          <span>CONFIDENCE</span>
-        </div>
-      </div>
-
-      <div class="hero">
-        <div class="imageBox">
-          <img id="thumbnail" class="hidden" alt="Evidence thumbnail">
-          <div id="imagePlaceholder" class="imagePlaceholder">
-            <strong>Source image not supplied</strong>
-            <span>Select the received photo to include its thumbnail.</span>
-          </div>
-        </div>
-
-        <div class="identityCard">
-          <div class="label">EVIDENCE ID</div>
-          <div id="evidenceId" class="evidenceId">—</div>
-
-          <div class="identityRows">
-            <div><span>Registry</span><strong id="registryValue">—</strong></div>
-            <div><span>Captured</span><strong id="capturedValue">—</strong></div>
-            <div><span>Operator / Location</span><strong id="primaryValue">—</strong></div>
-            <div><span>Site / Activity</span><strong id="secondaryValue">—</strong></div>
-          </div>
-        </div>
-      </div>
-
-      <div class="auditGrid">
-        <article class="auditCard">
-          <h3>Capture & Location</h3>
-          <div id="locationRows"></div>
-        </article>
-
-        <article class="auditCard">
-          <h3>Device of Capture</h3>
-          <div id="deviceRows"></div>
-        </article>
-
-        <article class="auditCard">
-          <h3>Integrity Findings</h3>
-          <div id="integrityRows"></div>
-        </article>
-      </div>
-
-      <section class="timelineCard">
-        <h3>Evidence Timeline</h3>
-        <div id="timelineRows" class="timelineRows"></div>
-      </section>
-
-      <footer class="certificateFooter">
-        <div>
-          <strong>GeoStamp Forensic Finding</strong>
-          <p>This certificate summarizes recorded technical signals and registry findings. It does not independently prove the truth of the photographed scene.</p>
-        </div>
-        <button id="printButton">PRINT / SAVE PDF</button>
-      </footer>
     </section>
   </main>
 
-  <script src="app.js"></script>
+  <script>
+    const REGISTRY_ENDPOINT = "https://script.google.com/macros/s/AKfycbxcANK_eHZ3aAqYYCvhYOxcdMuSNTBJ6CFvX-yRt6V2RtPbgRu9lvGYSmRHak3sumXs/exec";
+    const $ = id => document.getElementById(id);
+
+    function openCertificate(evidenceId) {
+      const clean = String(evidenceId || "").trim().toUpperCase();
+      if (!clean) {
+        $("statusMessage").textContent = "Enter an Evidence ID.";
+        return;
+      }
+      if (!/^GST-[A-Z0-9-]{8,64}$/.test(clean)) {
+        $("statusMessage").textContent = "Enter a valid GeoStamp Evidence ID.";
+        return;
+      }
+      $("statusMessage").textContent = "Opening registry certificate…";
+      const url = `${REGISTRY_ENDPOINT}?view=certificate&id=${encodeURIComponent(clean)}&v=${Date.now()}`;
+      window.location.href = url;
+    }
+
+    async function decodeQrFromPhoto(file) {
+      if (!("BarcodeDetector" in window)) {
+        throw new Error("This browser cannot read QR codes from images.");
+      }
+      const bitmap = await createImageBitmap(file);
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const codes = await detector.detect(bitmap);
+      if (!codes.length) throw new Error("No QR code found in the selected image.");
+      const raw = codes[0].rawValue.trim();
+
+      try {
+        const url = new URL(raw);
+        const directId = url.searchParams.get("id");
+        if (directId) return directId;
+        const encoded = url.searchParams.get("e");
+        if (encoded) {
+          let value = encoded.replace(/-/g, "+").replace(/_/g, "/");
+          while (value.length % 4) value += "=";
+          const decoded = JSON.parse(decodeURIComponent(escape(atob(value))));
+          return decoded.evidenceId || decoded.verificationId || decoded.id;
+        }
+      } catch (_) {}
+
+      if (/^GST-[A-Z0-9-]+$/i.test(raw)) return raw;
+      throw new Error("The selected QR does not contain a supported GeoStamp Evidence ID.");
+    }
+
+    $("lookupButton").addEventListener("click", () => openCertificate($("idInput").value));
+    $("idInput").addEventListener("keydown", event => {
+      if (event.key === "Enter") openCertificate(event.target.value);
+    });
+    $("photoInput").addEventListener("change", async event => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      $("statusMessage").textContent = "Reading QR from received photo…";
+      try {
+        const evidenceId = await decodeQrFromPhoto(file);
+        $("idInput").value = evidenceId;
+        openCertificate(evidenceId);
+      } catch (error) {
+        $("statusMessage").textContent = error.message || "QR could not be read.";
+      }
+    });
+
+    const queryId = new URLSearchParams(location.search).get("id");
+    if (queryId) $("idInput").value = queryId;
+  </script>
 </body>
 </html>
